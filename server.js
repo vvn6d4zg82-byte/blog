@@ -3,10 +3,32 @@ const path = require('path');
 const fs = require('fs');
 const { marked } = require('marked');
 const initSqlJs = require('sql.js').default;
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'data', 'blog.db');
+const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    cb(null, UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, Date.now() + '-' + Math.random().toString(36).slice(2, 8) + ext);
+  }
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = /\.(jpg|jpeg|png|gif|webp|svg|bmp|mp4|webm|pdf|doc|docx|xls|xlsx|zip|rar)$/i;
+    if (allowed.test(path.extname(file.originalname))) return cb(null, true);
+    cb(new Error('不支持的文件类型'));
+  }
+});
 
 let db;
 let SQL;
@@ -43,7 +65,21 @@ async function initDb() {
 
 app.set('view engine', 'ejs');
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.urlencoded({ extended: true }));
+
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: '未选择文件' });
+  res.json({ url: '/uploads/' + req.file.filename });
+});
+
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ error: err.message });
+  }
+  if (err) return res.status(400).json({ error: err.message });
+  next();
+});
 
 app.get('/', (req, res) => {
   const stmt = db.prepare('SELECT id, title, date, substr(content, 1, 200) as excerpt FROM posts ORDER BY id DESC');

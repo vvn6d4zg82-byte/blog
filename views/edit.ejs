@@ -25,9 +25,38 @@
       </div>
       <div class="form-group">
         <label for="content">内容 (支持 Markdown 格式)</label>
+        <div class="editor-toolbar">
+          <button type="button" class="btn btn-sm" onclick="document.getElementById('fileInput').click()">上传图片</button>
+          <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="uploadFile(this)">
+          <span id="uploadStatus" class="upload-status"></span>
+        </div>
         <textarea id="content" name="content" rows="15" required><%= post.content %></textarea>
       </div>
       <button type="submit" class="btn">保存</button>
+<script>
+async function uploadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('uploadStatus');
+  status.textContent = '上传中...';
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.url) {
+      const ta = document.getElementById('content');
+      ta.value += `\n![图片](${data.url})\n`;
+      status.textContent = '上传成功!';
+    } else {
+      status.textContent = '上传失败: ' + (data.error || '未知错误');
+    }
+  } catch (e) {
+    status.textContent = '上传失败: ' + e.message;
+  }
+  input.value = '';
+}
+</script>
       <a href="/post/<%= post.id %>" class="btn">取消</a>
     </form>
   </main>
