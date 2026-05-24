@@ -3,40 +3,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= post.title %> - 我的博客</title>
+  <title><%= post.title %> - <%= settings.site_title || '我的博客' %></title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
+<body class="<%= settings.theme || 'default' %>">
   <header>
     <div class="container">
-      <h1><a href="/">我的博客</a></h1>
+      <h1><a href="/"><%= settings.site_title || '我的博客' %></a></h1>
+      <% if (settings.site_subtitle) { %><p class="subtitle"><%= settings.site_subtitle %></p><% } %>
       <nav>
         <a href="/">首页</a>
-        <a href="/new">写文章</a>
+        <% if (auth) { %><a href="/new">写文章</a><a href="/settings">设置</a><a href="/logout">退出</a><% } %>
+        <% if (!auth) { %><a href="/login">登录</a><% } %>
       </nav>
     </div>
   </header>
-  <main class="container">
-    <article class="post-full">
-      <h2><%= post.title %></h2>
-      <div class="meta">
-        <span class="date"><%= post.date %></span>
-      </div>
-      <div class="content">
-        <%- post.content %>
-      </div>
-      <div class="actions">
-        <a href="/edit/<%= post.id %>" class="btn">编辑</a>
-        <form action="/delete/<%= post.id %>" method="POST" style="display:inline">
-          <button type="submit" class="btn btn-danger" onclick="return confirm('确定删除？')">删除</button>
-        </form>
-        <a href="/" class="btn">返回首页</a>
-      </div>
-    </article>
+  <main class="container main-layout">
+    <div class="content-area">
+      <article class="post-full">
+        <h2><%= post.title %></h2>
+        <div class="meta"><span class="date"><%= post.date %></span></div>
+        <div class="content"><%- post.content %></div>
+        <% if (auth) { %>
+          <div class="actions">
+            <a href="/edit/<%= post.id %>" class="btn">编辑</a>
+            <form action="/delete/<%= post.id %>" method="POST" style="display:inline">
+              <button type="submit" class="btn btn-danger" onclick="return confirm('确定删除？')">删除</button>
+            </form>
+            <a href="/" class="btn">返回首页</a>
+          </div>
+        <% } %>
+      </article>
+    </div>
+    <aside class="sidebar">
+      <% if (widgets.includes('about')) { %>
+        <div class="widget">
+          <h3>关于我</h3>
+          <% if (settings.avatar) { %><img src="<%= settings.avatar %>" class="avatar" alt="avatar"><% } %>
+          <p><%= settings.about || '' %></p>
+        </div>
+      <% } %>
+    </aside>
   </main>
   <footer>
     <div class="container">
-      <p>&copy; 2026 我的博客</p>
+      <p>&copy; 2026 <%= settings.site_title || '我的博客' %></p>
     </div>
   </footer>
 </body>

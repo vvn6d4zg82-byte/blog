@@ -3,38 +3,59 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>我的博客</title>
+  <title><%= settings.site_title || '我的博客' %></title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
+<body class="<%= settings.theme || 'default' %>">
   <header>
     <div class="container">
-      <h1><a href="/">我的博客</a></h1>
+      <h1><a href="/"><%= settings.site_title || '我的博客' %></a></h1>
+      <% if (settings.site_subtitle) { %><p class="subtitle"><%= settings.site_subtitle %></p><% } %>
       <nav>
         <a href="/">首页</a>
-        <a href="/new">写文章</a>
+        <% if (auth) { %><a href="/new">写文章</a><a href="/settings">设置</a><a href="/logout">退出</a><% } %>
+        <% if (!auth) { %><a href="/login">登录</a><% } %>
       </nav>
     </div>
   </header>
-  <main class="container">
-    <h2>文章列表</h2>
-    <% if (posts.length === 0) { %>
-      <p class="empty">还没有文章，<a href="/new">写一篇</a>吧！</p>
-    <% } %>
-    <% posts.forEach(post => { %>
-      <article class="post-card">
-        <h3><a href="/post/<%= post.id %>"><%= post.title %></a></h3>
-        <div class="meta">
-          <span class="date"><%= post.date %></span>
+  <main class="container main-layout">
+    <div class="content-area">
+      <h2>文章列表</h2>
+      <% if (posts.length === 0) { %>
+        <p class="empty">还没有文章</p>
+      <% } %>
+      <% posts.forEach(post => { %>
+        <article class="post-card">
+          <h3><a href="/post/<%= post.id %>"><%= post.title %></a></h3>
+          <div class="meta"><span class="date"><%= post.date %></span></div>
+          <p><%= post.excerpt %>...</p>
+          <a href="/post/<%= post.id %>" class="read-more">阅读更多</a>
+        </article>
+      <% }); %>
+    </div>
+    <aside class="sidebar">
+      <% if (widgets.includes('about')) { %>
+        <div class="widget">
+          <h3>关于我</h3>
+          <% if (settings.avatar) { %><img src="<%= settings.avatar %>" class="avatar" alt="avatar"><% } %>
+          <p><%= settings.about || '' %></p>
         </div>
-        <p><%= post.excerpt %>...</p>
-        <a href="/post/<%= post.id %>" class="read-more">阅读更多</a>
-      </article>
-    <% }); %>
+      <% } %>
+      <% if (widgets.includes('recent')) { %>
+        <div class="widget">
+          <h3>近期文章</h3>
+          <ul>
+            <% posts.slice(0, 5).forEach(p => { %>
+              <li><a href="/post/<%= p.id %>"><%= p.title %></a></li>
+            <% }); %>
+          </ul>
+        </div>
+      <% } %>
+    </aside>
   </main>
   <footer>
     <div class="container">
-      <p>&copy; 2026 我的博客</p>
+      <p>&copy; 2026 <%= settings.site_title || '我的博客' %></p>
     </div>
   </footer>
 </body>

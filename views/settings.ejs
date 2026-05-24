@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>站点设置 - 我的博客</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1><a href="/">我的博客</a></h1>
+      <nav>
+        <a href="/">首页</a>
+        <a href="/new">写文章</a>
+        <a href="/settings">设置</a>
+        <a href="/logout">退出</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    <h2>站点设置</h2>
+    <form action="/settings" method="POST" class="post-form">
+      <div class="form-group">
+        <label for="site_title">站点名称</label>
+        <input type="text" id="site_title" name="site_title" value="<%= settings.site_title || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="site_subtitle">副标题</label>
+        <input type="text" id="site_subtitle" name="site_subtitle" value="<%= settings.site_subtitle || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="avatar">头像 URL</label>
+        <input type="text" id="avatar" name="avatar" value="<%= settings.avatar || '' %>">
+      </div>
+      <div class="form-group">
+        <label for="about">关于我</label>
+        <textarea id="about" name="about" rows="4"><%= settings.about || '' %></textarea>
+      </div>
+      <div class="form-group">
+        <label>侧边栏模块（勾选要显示的模块）</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" name="widgets_about" value="1" <%= (settings.widgets || '').includes('about') ? 'checked' : '' %>> 关于我</label>
+          <label><input type="checkbox" name="widgets_recent" value="1" <%= (settings.widgets || '').includes('recent') ? 'checked' : '' %>> 近期文章</label>
+          <label><input type="checkbox" name="widgets_tags" value="1" <%= (settings.widgets || '').includes('tags') ? 'checked' : '' %>> 标签</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="theme">主题</label>
+        <select id="theme" name="theme">
+          <option value="default" <%= settings.theme === 'default' ? 'selected' : '' %>>默认</option>
+          <option value="dark" <%= settings.theme === 'dark' ? 'selected' : '' %>>暗色</option>
+        </select>
+      </div>
+      <button type="submit" class="btn">保存设置</button>
+      <a href="/" class="btn">返回首页</a>
+    </form>
+  </main>
+  <script>
+    (function() {
+      const form = document.querySelector('.post-form');
+      form.addEventListener('submit', function() {
+        const widgets = [];
+        if (document.querySelector('[name=widgets_about]:checked')) widgets.push('about');
+        if (document.querySelector('[name=widgets_recent]:checked')) widgets.push('recent');
+        if (document.querySelector('[name=widgets_tags]:checked')) widgets.push('tags');
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'widgets';
+        input.value = widgets.join(',');
+        form.appendChild(input);
+      });
+    })();
+  </script>
+</body>
+</html>

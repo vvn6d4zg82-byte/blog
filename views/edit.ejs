@@ -3,16 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>编辑文章 - 我的博客</title>
+  <title>编辑文章 - <%= settings.site_title || '我的博客' %></title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
+<body class="<%= settings.theme || 'default' %>">
   <header>
     <div class="container">
-      <h1><a href="/">我的博客</a></h1>
+      <h1><a href="/"><%= settings.site_title || '我的博客' %></a></h1>
+      <% if (settings.site_subtitle) { %><p class="subtitle"><%= settings.site_subtitle %></p><% } %>
       <nav>
         <a href="/">首页</a>
         <a href="/new">写文章</a>
+        <a href="/settings">设置</a>
+        <a href="/logout">退出</a>
       </nav>
     </div>
   </header>
@@ -33,6 +36,14 @@
         <textarea id="content" name="content" rows="15" required><%= post.content %></textarea>
       </div>
       <button type="submit" class="btn">保存</button>
+      <a href="/post/<%= post.id %>" class="btn">取消</a>
+    </form>
+  </main>
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 <%= settings.site_title || '我的博客' %></p>
+    </div>
+  </footer>
 <script>
 async function uploadFile(input) {
   const file = input.files[0];
@@ -45,8 +56,7 @@ async function uploadFile(input) {
     const res = await fetch('/upload', { method: 'POST', body: fd });
     const data = await res.json();
     if (data.url) {
-      const ta = document.getElementById('content');
-      ta.value += `\n![图片](${data.url})\n`;
+      document.getElementById('content').value += `\n![图片](${data.url})\n`;
       status.textContent = '上传成功!';
     } else {
       status.textContent = '上传失败: ' + (data.error || '未知错误');
@@ -57,13 +67,5 @@ async function uploadFile(input) {
   input.value = '';
 }
 </script>
-      <a href="/post/<%= post.id %>" class="btn">取消</a>
-    </form>
-  </main>
-  <footer>
-    <div class="container">
-      <p>&copy; 2026 我的博客</p>
-    </div>
-  </footer>
 </body>
 </html>
