@@ -27,7 +27,7 @@
         <div class="meta">
           <span class="date"><%= post.date %></span>
         </div>
-        <p><%= post.content.slice(0, 200) %>...</p>
+        <p><%= post.excerpt %>...</p>
         <a href="/post/<%= post.id %>" class="read-more">阅读更多</a>
       </article>
     <% }); %>
