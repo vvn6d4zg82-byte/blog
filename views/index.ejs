@@ -20,7 +20,7 @@
 
 <div id="startScreen" class="start-screen">
   <div class="wallpaper-bg">
-    <video id="bgVideo" autoplay muted loop playsinline poster="/wallpaper-preview.jpg">
+    <video id="bgVideo" autoplay muted loop playsinline preload="none" poster="/wallpaper-preview.jpg">
       <source src="<%= settings.wallpaper_url || '/wallpaper.mp4' %>" type="video/mp4">
     </video>
     <div class="wallpaper-overlay" style="opacity: <%= settings.wallpaper_overlay || 0.6 %>"></div>
@@ -129,7 +129,7 @@
 
   <section class="posts-section" id="postsSection">
     <div class="posts-wallpaper">
-      <video autoplay muted loop playsinline>
+      <video autoplay muted loop playsinline preload="none" poster="/wallpaper-preview.jpg">
         <source src="<%= settings.wallpaper_url || '/wallpaper.mp4' %>" type="video/mp4">
       </video>
       <div class="posts-wallpaper-overlay"></div>

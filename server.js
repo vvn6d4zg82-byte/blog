@@ -74,10 +74,14 @@ app.get('/', async (req, res) => {
       date: p.date ? (typeof p.date === 'string' ? p.date.slice(0,10) : new Date(p.date).toISOString().slice(0,10)) : ''
     }));
     const blocksResult = await db.query('SELECT * FROM homepage_blocks ORDER BY sort_order ASC');
+    const blocks = (blocksResult.rows || []).map(b => ({
+      ...b,
+      data: typeof b.data === 'string' ? JSON.parse(b.data || '{}') : (b.data || {})
+    }));
     res.render('index', {
       settings,
       posts,
-      blocks: blocksResult.rows,
+      blocks,
       auth: isAuth(req),
       site_title: 'ZHZAILL'
     });

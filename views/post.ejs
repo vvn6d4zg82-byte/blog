@@ -9,7 +9,7 @@
 </head>
 <body>
 <div class="wallpaper-bg">
-  <video autoplay muted loop playsinline poster="/wallpaper-preview.jpg">
+  <video autoplay muted loop playsinline preload="none" poster="/wallpaper-preview.jpg">
     <source src="<%= settings.wallpaper_url || '/wallpaper.mp4' %>" type="video/mp4">
   </video>
   <div class="wallpaper-overlay" style="opacity:0.6"></div>
