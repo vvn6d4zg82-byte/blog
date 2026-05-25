@@ -1,62 +1,213 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= settings.site_title || '我的博客' %></title>
-  <link rel="stylesheet" href="/css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><%= settings.site_title || 'ZHZAILL' %></title>
+<link rel="stylesheet" href="/css/y2k.css">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&display=swap" rel="stylesheet">
 </head>
-<body class="<%= settings.theme || 'default' %>">
-  <header>
-    <div class="container">
-      <h1><a href="/"><%= settings.site_title || '我的博客' %></a></h1>
-      <% if (settings.site_subtitle) { %><p class="subtitle"><%= settings.site_subtitle %></p><% } %>
-      <nav>
-        <a href="/">首页</a>
-        <% if (auth) { %><a href="/new">写文章</a><a href="/settings">设置</a><a href="/logout">退出</a><% } %>
-        <% if (!auth) { %><a href="/login">登录</a><% } %>
-      </nav>
-    </div>
-  </header>
-  <main class="container main-layout">
-    <div class="content-area">
-      <h2>文章列表</h2>
-      <% if (posts.length === 0) { %>
-        <p class="empty">还没有文章</p>
+<body>
+
+<div id="loader">
+  <div class="loader-bg"></div>
+  <div class="loader-content">
+    <img src="/images/lilith.webp" alt="莉莉丝" class="lilith-real">
+    <div class="loader-stars" id="loaderStars"></div>
+  </div>
+</div>
+
+<div id="startScreen" class="start-screen">
+  <div class="wallpaper-bg">
+    <video id="bgVideo" autoplay muted loop playsinline poster="/wallpaper-preview.jpg">
+      <source src="<%= settings.wallpaper_url || '/wallpaper.mp4' %>" type="video/mp4">
+    </video>
+    <div class="wallpaper-overlay" style="opacity: <%= settings.wallpaper_overlay || 0.6 %>"></div>
+  </div>
+  <div class="start-content">
+    <div class="start-badge">✦ ZHZAILL ✦</div>
+    <h1 class="start-title"><%= settings.site_title || 'ZHZAILL' %></h1>
+    <p class="start-subtitle"><%= settings.site_subtitle || '不存在的你，与我' %></p>
+    <button class="start-btn" id="startBtn">★ 开 始 ★</button>
+  </div>
+  <div class="login-corner">
+    <% if (auth) { %>
+      <a href="/admin" class="login-link">管理</a>
+      <a href="/logout" class="login-link">退出</a>
+    <% } else { %>
+      <a href="/login" class="login-link">登录</a>
+    <% } %>
+  </div>
+  <div class="scroll-hint" id="scrollHint">✦ 向下滚动 ✦</div>
+</div>
+
+<div id="music-toggle" onclick="toggleMusic()">♪</div>
+
+<main class="main-content" id="mainContent">
+
+  <section class="newspaper-section" id="newspaperSection">
+    <div class="newspaper-container">
+      <div class="newspaper-header">
+        <div class="newspaper-date"><%= new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }) %></div>
+        <h2 class="newspaper-masthead"><%= settings.site_title || 'ZHZAILL' %></h2>
+        <div class="newspaper-tagline"><%= settings.site_subtitle || '不存在的你，与我' %></div>
+      </div>
+      <div class="newspaper-blocks" id="newspaperBlocks">
+        <% if (blocks && blocks.length) { %>
+          <% blocks.forEach(function(block, idx) { %>
+            <div class="np-block np-block-<%= block.type %>" data-id="<%= block.id %>" data-type="<%= block.type %>">
+              <% if (auth) { %>
+              <div class="np-block-tools">
+                <button class="np-btn np-btn-up" title="上移">↑</button>
+                <button class="np-btn np-btn-down" title="下移">↓</button>
+                <button class="np-btn np-btn-edit" title="编辑">✎</button>
+                <button class="np-btn np-btn-delete" title="删除">✕</button>
+              </div>
+              <% } %>
+              <div class="np-block-content">
+                <% if (block.type === 'heading') { %>
+                  <% var hData = typeof block.data === 'string' ? JSON.parse(block.data || '{}') : (block.data || {}); %>
+                  <<%= 'h' + (hData.level || 2) %> class="np-heading"><%= hData.text || '' %></<%= 'h' + (hData.level || 2) %>>
+                <% } else if (block.type === 'text') { %>
+                  <% var tData = typeof block.data === 'string' ? JSON.parse(block.data || '{}') : (block.data || {}); %>
+                  <div class="np-text"><%= tData.text || '' %></div>
+                <% } else if (block.type === 'image') { %>
+                  <% var iData = typeof block.data === 'string' ? JSON.parse(block.data || '{}') : (block.data || {}); %>
+                  <div class="np-image-wrap">
+                    <img src="<%= iData.url || '' %>" alt="<%= iData.caption || '' %>">
+                    <% if (iData.caption) { %><p class="np-caption"><%= iData.caption %></p><% } %>
+                  </div>
+                <% } else if (block.type === 'video') { %>
+                  <% var vData = typeof block.data === 'string' ? JSON.parse(block.data || '{}') : (block.data || {}); %>
+                  <div class="np-video-wrap">
+                    <video controls style="width:100%;max-height:500px">
+                      <source src="<%= vData.url || '' %>">
+                    </video>
+                    <% if (vData.caption) { %><p class="np-caption"><%= vData.caption %></p><% } %>
+                  </div>
+                <% } else if (block.type === 'divider') { %>
+                  <div class="np-divider">✦ ✦ ✦</div>
+                <% } else if (block.type === 'posts-grid') { %>
+                  <% var pData = typeof block.data === 'string' ? JSON.parse(block.data || '{}') : (block.data || {}); %>
+                  <% var maxPosts = pData.count || 6; %>
+                  <div class="np-posts-grid">
+                    <% if (posts && posts.length) { %>
+                      <% posts.slice(0, maxPosts).forEach(function(p) { %>
+                      <a href="/post/<%= p.id %>" class="np-post-card">
+                        <% if (p.cover_image) { %>
+                        <div class="np-post-cover"><img src="<%= p.cover_image %>" alt=""></div>
+                        <% } %>
+                        <div class="np-post-info">
+                          <span class="np-post-type"><%= p.post_type || 'article' %></span>
+                          <span class="np-post-date"><%= p.date || '' %></span>
+                        </div>
+                        <% if (p.title) { %><h4 class="np-post-title"><%= p.title %></h4><% } %>
+                      </a>
+                      <% }) %>
+                    <% } else { %>
+                      <div class="np-post-card empty">✦ 还没有内容 ✦</div>
+                    <% } %>
+                  </div>
+                <% } %>
+              </div>
+            </div>
+          <% }) %>
+        <% } else { %>
+          <div class="np-block np-block-empty" id="emptyBlock">
+            <div class="np-empty-msg">✦ 报纸还没有内容 ✦</div>
+          </div>
+        <% } %>
+      </div>
+      <% if (auth) { %>
+      <div class="np-add-block">
+        <button id="addBlockBtn" class="np-add-btn">＋ 添加模块</button>
+      </div>
       <% } %>
-      <% posts.forEach(post => { %>
-        <article class="post-card">
-          <h3><a href="/post/<%= post.id %>"><%= post.title %></a></h3>
-          <div class="meta"><span class="date"><%= post.date %></span></div>
-          <p><%= post.excerpt %>...</p>
-          <a href="/post/<%= post.id %>" class="read-more">阅读更多</a>
-        </article>
-      <% }); %>
     </div>
-    <aside class="sidebar">
-      <% if (widgets.includes('about')) { %>
-        <div class="widget">
-          <h3>关于我</h3>
-          <% if (settings.avatar) { %><img src="<%= settings.avatar %>" class="avatar" alt="avatar"><% } %>
-          <p><%= settings.about || '' %></p>
-        </div>
-      <% } %>
-      <% if (widgets.includes('recent')) { %>
-        <div class="widget">
-          <h3>近期文章</h3>
-          <ul>
-            <% posts.slice(0, 5).forEach(p => { %>
-              <li><a href="/post/<%= p.id %>"><%= p.title %></a></li>
-            <% }); %>
-          </ul>
-        </div>
-      <% } %>
-    </aside>
-  </main>
-  <footer>
-    <div class="container">
-      <p>&copy; 2026 <%= settings.site_title || '我的博客' %></p>
+  </section>
+
+  <section class="posts-section" id="postsSection">
+    <div class="posts-wallpaper">
+      <video autoplay muted loop playsinline>
+        <source src="<%= settings.wallpaper_url || '/wallpaper.mp4' %>" type="video/mp4">
+      </video>
+      <div class="posts-wallpaper-overlay"></div>
     </div>
+    <div class="posts-section-content">
+      <div class="section-title"><span>✦ 最新记录 ✦</span></div>
+      <div class="posts-grid">
+        <% if (posts && posts.length) { %>
+          <% posts.forEach(function(post) { %>
+          <a href="/post/<%= post.id %>" class="post-card type-<%= post.post_type || 'article' %>">
+            <% if (post.cover_image) { %>
+            <div class="post-cover"><img src="<%= post.cover_image %>" alt=""></div>
+            <% } %>
+            <div class="post-info">
+              <span class="post-type"><%= post.post_type || 'article' %></span>
+              <span class="post-date"><%= post.date || '' %></span>
+            </div>
+            <% if (post.title) { %>
+            <h3 class="post-title"><%= post.title %></h3>
+            <% } %>
+          </a>
+          <% }) %>
+        <% } else { %>
+          <div class="post-card empty">
+            <div class="empty-msg">✦ 还没有内容 ✦</div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-stars">⭐ ✨ ⭐ ✨ ⭐ ✨ ⭐</div>
+    <p>© ZHZAILL · 不存在的你，与我</p>
+    <p class="footer-note">Powered by ❤️ and ☕</p>
   </footer>
+</main>
+
+<div id="amiyaPet" class="amiya-pet">
+  <canvas id="amiyaCanvas"></canvas>
+</div>
+
+<div id="blockModal" class="modal-overlay" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="modalTitle">添加模块</h3>
+      <button class="modal-close" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modalTypeSelector" class="modal-type-select">
+        <label>模块类型</label>
+        <select id="modalBlockType">
+          <option value="heading">大标题</option>
+          <option value="text">正文</option>
+          <option value="image">图片</option>
+          <option value="video">视频</option>
+          <option value="divider">分割线</option>
+          <option value="posts-grid">文章列表</option>
+        </select>
+      </div>
+      <div id="modalFields"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn modal-btn-cancel" id="modalCancel">取消</button>
+      <button class="modal-btn modal-btn-save" id="modalSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.__INITIAL_DATA__ = {
+    blocks: <%- JSON.stringify(blocks || []) %>,
+    posts: <%- JSON.stringify(posts || []) %>,
+    auth: <%= auth ? 'true' : 'false' %>
+  };
+</script>
+<script src="/js/y2k.js"></script>
+<script src="/js/newspaper.js"></script>
+<script src="/js/pet.js"></script>
 </body>
 </html>

@@ -1,31 +1,33 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>登录 - 我的博客</title>
-  <link rel="stylesheet" href="/css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 - <%= site_title %></title>
+<link rel="stylesheet" href="/css/y2k.css">
 </head>
-<body>
-  <header>
-    <div class="container">
-      <h1><a href="/">我的博客</a></h1>
-    </div>
-  </header>
-  <main class="container">
-    <div class="login-box">
-      <h2>管理登录</h2>
-      <% if (typeof error !== 'undefined' && error) { %>
-        <p class="error"><%= error %></p>
-      <% } %>
-      <form action="/login" method="POST" class="post-form">
-        <div class="form-group">
-          <label for="password">密码</label>
-          <input type="password" id="password" name="password" required>
-        </div>
-        <button type="submit" class="btn">登录</button>
-      </form>
-    </div>
-  </main>
+<body class="admin-page">
+<div class="wallpaper-bg">
+  <video autoplay muted loop playsinline poster="/wallpaper-preview.jpg">
+    <source src="/wallpaper.mp4" type="video/mp4">
+  </video>
+  <div class="wallpaper-overlay" style="opacity:0.7"></div>
+</div>
+<main class="main-content visible" style="min-height:100vh;display:flex;align-items:center;justify-content:center">
+  <div style="background:rgba(0,0,0,0.6);backdrop-filter:blur(20px);border:1px solid rgba(180,140,255,0.2);border-radius:16px;padding:40px;width:100%;max-width:380px;text-align:center">
+    <h1 style="font-size:20px;margin-bottom:24px;font-weight:300;letter-spacing:0.3em">✦ 管理登录 ✦</h1>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <p style="color:#ff6bcd;font-size:12px;margin-bottom:16px"><%= error %></p>
+    <% } %>
+    <form method="POST" action="/login">
+      <input type="password" name="password" placeholder="密码" required
+        style="width:100%;padding:12px 16px;background:rgba(255,255,255,0.05);border:1px solid rgba(180,140,255,0.2);border-radius:8px;color:#fff;font-size:14px;outline:none;margin-bottom:16px">
+      <button type="submit"
+        style="width:100%;padding:12px;background:linear-gradient(135deg,rgba(180,140,255,0.3),rgba(255,107,205,0.3));border:1px solid rgba(180,140,255,0.3);border-radius:8px;color:#fff;font-size:14px;cursor:pointer;transition:all 0.3s;font-family:'Press Start 2P',monospace;font-size:10px"
+        onmouseover="this.style.background='linear-gradient(135deg,rgba(180,140,255,0.5),rgba(255,107,205,0.5))'"
+        onmouseout="this.style.background='linear-gradient(135deg,rgba(180,140,255,0.3),rgba(255,107,205,0.3))'">✦ 进入 ✦</button>
+    </form>
+  </div>
+</main>
 </body>
 </html>

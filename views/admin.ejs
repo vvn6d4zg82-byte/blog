@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理 - <%= site_title %></title>
+<link rel="stylesheet" href="/css/y2k.css">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body class="admin-page">
+<div class="wallpaper-bg">
+  <video autoplay muted loop playsinline poster="/wallpaper-preview.jpg">
+    <source src="<%= settings.wallpaper_url || '/wallpaper.mp4' %>" type="video/mp4">
+  </video>
+  <div class="wallpaper-overlay" style="opacity:0.7"></div>
+</div>
+<header style="position:relative;z-index:1;padding:20px;background:rgba(0,0,0,0.4);backdrop-filter:blur(10px);border-bottom:1px solid rgba(180,140,255,0.1)">
+  <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <h1 style="font-size:16px;font-weight:300;letter-spacing:0.2em">✦ <%= site_title %> 管理 ✦</h1>
+    <nav style="display:flex;gap:12px;flex-wrap:wrap">
+      <a href="/" style="color:#b48cff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(180,140,255,0.2);border-radius:20px">首页</a>
+      <a href="/new" style="color:#b48cff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(180,140,255,0.2);border-radius:20px">新文章</a>
+      <a href="/settings" style="color:#b48cff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(180,140,255,0.2);border-radius:20px">设置</a>
+      <a href="/logout" style="color:#ff6bcd;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(255,107,205,0.2);border-radius:20px">退出</a>
+    </nav>
+  </div>
+</header>
+<main style="position:relative;z-index:1;max-width:1200px;margin:0 auto;padding:40px 20px">
+  <% if (posts && posts.length) { %>
+    <% posts.forEach(function(post) { %>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;margin-bottom:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:12px;transition:all 0.3s"
+      onmouseover="this.style.background='rgba(255,255,255,0.06)'"
+      onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+      <div>
+        <span style="display:inline-block;padding:2px 8px;background:rgba(180,140,255,0.15);border-radius:4px;font-size:10px;color:#b48cff;margin-right:12px"><%= post.post_type || 'article' %></span>
+        <span style="color:rgba(255,255,255,0.3);font-size:11px"><%= post.date ? post.date.slice(0,10) : '' %></span>
+        <span style="margin-left:12px;font-size:14px"><%= post.title || '(无标题)' %></span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <a href="/edit/<%= post.id %>" style="color:#b48cff;text-decoration:none;font-size:12px;padding:4px 12px;border:1px solid rgba(180,140,255,0.2);border-radius:6px">编辑</a>
+        <form method="POST" action="/delete/<%= post.id %>" style="display:inline" onsubmit="return confirm('确认删除？')">
+          <button type="submit" style="background:none;color:#ff6bcd;border:1px solid rgba(255,107,205,0.2);border-radius:6px;padding:4px 12px;font-size:12px;cursor:pointer">删除</button>
+        </form>
+      </div>
+    </div>
+    <% }) %>
+  <% } else { %>
+  <div style="text-align:center;padding:60px 20px;color:rgba(255,255,255,0.3);font-family:'Press Start 2P',monospace;font-size:10px">
+    ✦ 还没有帖子 ✦
+  </div>
+  <% } %>
+</main>
+</body>
+</html>

@@ -1,69 +1,113 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>写文章 - <%= settings.site_title || '我的博客' %></title>
-  <link rel="stylesheet" href="/css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新文章 - <%= site_title %></title>
+<link rel="stylesheet" href="/css/y2k.css">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
 </head>
-<body class="<%= settings.theme || 'default' %>">
-  <header>
-    <div class="container">
-      <h1><a href="/"><%= settings.site_title || '我的博客' %></a></h1>
-      <% if (settings.site_subtitle) { %><p class="subtitle"><%= settings.site_subtitle %></p><% } %>
-      <nav>
-        <a href="/">首页</a>
-        <a href="/new">写文章</a>
-        <a href="/settings">设置</a>
-        <a href="/logout">退出</a>
-      </nav>
-    </div>
-  </header>
-  <main class="container">
-    <h2>写新文章</h2>
-    <form action="/new" method="POST" class="post-form">
-      <div class="form-group">
-        <label for="title">标题</label>
-        <input type="text" id="title" name="title" required>
-      </div>
-      <div class="form-group">
-        <label for="content">内容 (支持 Markdown 格式)</label>
-        <div class="editor-toolbar">
-          <button type="button" class="btn btn-sm" onclick="document.getElementById('fileInput').click()">上传图片</button>
-          <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="uploadFile(this)">
-          <span id="uploadStatus" class="upload-status"></span>
-        </div>
-        <textarea id="content" name="content" rows="15" required></textarea>
-      </div>
-      <button type="submit" class="btn">发布</button>
-      <a href="/" class="btn">取消</a>
-    </form>
-  </main>
-  <footer>
-    <div class="container">
-      <p>&copy; 2026 <%= settings.site_title || '我的博客' %></p>
-    </div>
-  </footer>
+<body>
+<header style="position:relative;z-index:10;padding:16px 20px;background:rgba(0,0,0,0.8);backdrop-filter:blur(10px);border-bottom:1px solid rgba(180,140,255,0.1)">
+  <div style="max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <a href="/admin" style="color:#b48cff;text-decoration:none;font-size:12px">&larr; 返回管理</a>
+    <span style="font-size:12px;color:rgba(255,255,255,0.4);font-family:'Press Start 2P',monospace">✦ 新记录 ✦</span>
+    <button onclick="savePost()" style="background:linear-gradient(135deg,rgba(180,140,255,0.3),rgba(255,107,205,0.3));border:1px solid rgba(180,140,255,0.3);border-radius:8px;color:#fff;padding:8px 24px;cursor:pointer;font-size:12px;font-family:'Press Start 2P',monospace">发布</button>
+  </div>
+</header>
+<main style="max-width:900px;margin:0 auto;padding:40px 20px">
+  <div style="margin-bottom:24px">
+    <input id="postTitle" type="text" placeholder="标题（可选）" style="width:100%;padding:16px 20px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;color:#fff;font-size:24px;font-weight:700;outline:none">
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
+    <select id="postType" style="background:rgba(255,255,255,0.05);border:1px solid rgba(180,140,255,0.2);border-radius:8px;color:#fff;padding:8px 16px;font-size:13px;outline:none">
+      <option value="article">文章</option>
+      <option value="photo">摄影</option>
+      <option value="video">视频</option>
+      <option value="mixed">图文</option>
+    </select>
+    <input id="coverImage" type="text" placeholder="封面图 URL (可选)" style="flex:1;min-width:200px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px;color:#fff;padding:8px 16px;font-size:13px;outline:none">
+  </div>
+  <div id="editorjs" style="background:rgba(0,0,0,0.3);backdrop-filter:blur(20px);border:1px solid rgba(180,140,255,0.1);border-radius:16px;padding:24px;min-height:400px"></div>
+  <div style="margin-top:16px;text-align:right">
+    <label style="display:inline-block;padding:8px 16px;background:rgba(180,140,255,0.1);border:1px solid rgba(180,140,255,0.2);border-radius:8px;color:#b48cff;font-size:12px;cursor:pointer">
+      📎 上传媒体
+      <input type="file" id="mediaUpload" accept="image/*,video/*" style="display:none" onchange="uploadMedia(this)">
+    </label>
+  </div>
+</main>
 <script>
-async function uploadFile(input) {
+let editor;
+const API_BASE = '';
+
+document.addEventListener('DOMContentLoaded', function() {
+  editor = new EditorJS({
+    holder: 'editorjs',
+    placeholder: '开始写点什么...',
+    tools: {},
+    data: { blocks: [] }
+  });
+});
+
+async function savePost() {
+  const title = document.getElementById('postTitle').value;
+  const postType = document.getElementById('postType').value;
+  const coverImage = document.getElementById('coverImage').value;
+  const out = await editor.save();
+  const blocks = out.blocks || [];
+  // Auto-detect type based on blocks if needed
+  let finalType = postType;
+  if (postType === 'mixed' || postType === 'article') {
+    const hasImage = blocks.some(b => b.type === 'image');
+    const hasVideo = blocks.some(b => b.type === 'video');
+    if (hasVideo && !hasImage) finalType = 'video';
+    else if (hasImage && !hasVideo && blocks.length <= 3) finalType = 'photo';
+    else if (hasImage && hasVideo) finalType = 'mixed';
+  }
+
+  // Add cover from first image if not set
+  let cover = coverImage;
+  if (!cover) {
+    const firstImg = blocks.find(b => b.type === 'image');
+    if (firstImg) cover = firstImg.data?.url || firstImg.url || '';
+  }
+
+  try {
+    const res = await fetch('/new', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, post_type: finalType, content: blocks, cover_image: cover })
+    });
+    const data = await res.json();
+    if (data.ok) window.location.href = '/post/' + data.id;
+  } catch(e) {
+    alert('保存失败: ' + e.message);
+  }
+}
+
+function uploadMedia(input) {
   const file = input.files[0];
   if (!file) return;
-  const status = document.getElementById('uploadStatus');
-  status.textContent = '上传中...';
-  const fd = new FormData();
-  fd.append('file', file);
-  try {
-    const res = await fetch('/upload', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (data.url) {
-      document.getElementById('content').value += `\n![图片](${data.url})\n`;
-      status.textContent = '上传成功!';
-    } else {
-      status.textContent = '上传失败: ' + (data.error || '未知错误');
-    }
-  } catch (e) {
-    status.textContent = '上传失败: ' + e.message;
-  }
+  const formData = new FormData();
+  formData.append('file', file);
+  fetch('/upload', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      if (data.url) {
+        // Insert media block into editor
+        const isVideo = file.type.startsWith('video/');
+        const block = isVideo
+          ? { type: 'video', data: { url: data.url } }
+          : { type: 'image', data: { url: data.url, caption: '' } };
+        // For now, reload and let user paste the URL
+        alert('上传成功: ' + data.url + '\n请粘贴到内容中');
+        if (isVideo) {
+          document.querySelector('#editorjs').focus();
+        }
+      }
+    })
+    .catch(e => alert('上传失败: ' + e.message));
   input.value = '';
 }
 </script>

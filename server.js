@@ -1,19 +1,286 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { marked } = require('marked');
-const initSqlJs = require('sql.js').default;
-const multer = require('multer');
+const { initDb } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_PATH = path.join(__dirname, 'data', 'blog.db');
 const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
 const PASSWORD = process.env.BLOG_PASSWORD || '012345Zz';
 
-const UPLOAD_DIR_REL = '/uploads';
+let db;
 
+function hashPw(pw) {
+  return crypto.createHash('sha256').update(pw).digest('hex');
+}
+
+function cookieMiddleware(req, res, next) {
+  const cookies = req.headers.cookie || '';
+  req.cookies = {};
+  for (const pair of cookies.split(';')) {
+    const [k, ...v] = pair.trim().split('=');
+    if (k) req.cookies[k] = decodeURIComponent(v.join('='));
+  }
+  next();
+}
+
+function isAuth(req) {
+  return req.cookies && req.cookies.token === hashPw(PASSWORD);
+}
+
+function requireAuth(req, res, next) {
+  if (isAuth(req)) return next();
+  res.redirect('/login');
+}
+
+app.set('view engine', 'ejs');
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(UPLOAD_DIR));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(cookieMiddleware);
+
+app.get('/login', (req, res) => {
+  if (isAuth(req)) return res.redirect('/admin');
+  res.render('login', { site_title: 'ZHZAILL' });
+});
+
+app.post('/login', (req, res) => {
+  if (req.body.password === PASSWORD) {
+    res.setHeader('Set-Cookie', `token=${hashPw(PASSWORD)}; Path=/; HttpOnly`);
+    return res.redirect('/admin');
+  }
+  res.render('login', { error: '密码错误', site_title: 'ZHZAILL' });
+});
+
+app.get('/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'token=; Path=/; Max-Age=0');
+  res.redirect('/');
+});
+
+app.get('/', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const excerptExpr = db.isPg
+      ? "substr(content::text, 1, 300) as excerpt"
+      : "substr(content, 1, 300) as excerpt";
+    const postsResult = await db.query(
+      `SELECT id, title, post_type, cover_image, date, ${excerptExpr} FROM posts ORDER BY id DESC`
+    );
+    const posts = (postsResult.rows || []).map(p => ({
+      ...p,
+      date: p.date ? (typeof p.date === 'string' ? p.date.slice(0,10) : new Date(p.date).toISOString().slice(0,10)) : ''
+    }));
+    const blocksResult = await db.query('SELECT * FROM homepage_blocks ORDER BY sort_order ASC');
+    res.render('index', {
+      settings,
+      posts,
+      blocks: blocksResult.rows,
+      auth: isAuth(req),
+      site_title: 'ZHZAILL'
+    });
+  } catch(e) {
+    console.error('Index error:', e);
+    res.status(500).send('服务器错误');
+  }
+});
+
+app.get('/post/:id', async (req, res) => {
+  try {
+    const pid = parseInt(req.params.id);
+    const result = await db.query('SELECT * FROM posts WHERE id = $1', [pid]);
+    if (!result.rows.length) return res.status(404).send('文章未找到');
+    const post = result.rows[0];
+    if (post.date && typeof post.date !== 'string') {
+      post.date = new Date(post.date).toISOString();
+    }
+    let content = post.content;
+    if (typeof content === 'string') {
+      try { content = JSON.parse(content); } catch (e) { content = []; }
+    }
+    const settings = await getSettings();
+    res.render('post', { post, content, settings, auth: isAuth(req), site_title: 'ZHZAILL' });
+  } catch(e) {
+    console.error('Post error:', e);
+    res.status(500).send('服务器错误');
+  }
+});
+
+app.get('/admin', requireAuth, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const posts = await db.query('SELECT id, title, post_type, date FROM posts ORDER BY id DESC');
+    res.render('admin', { settings, posts: posts.rows, site_title: 'ZHZAILL' });
+  } catch(e) {
+    console.error('Admin error:', e);
+    res.status(500).send('服务器错误');
+  }
+});
+
+app.get('/new', requireAuth, async (req, res) => {
+  const settings = await getSettings();
+  res.render('new', { settings, site_title: 'ZHZAILL' });
+});
+
+app.post('/new', requireAuth, async (req, res) => {
+  try {
+    const { title, post_type, content } = req.body;
+    const contentStr = JSON.stringify(content || []);
+    const dateExpr = db.isPg ? "NOW()" : "datetime('now','localtime')";
+    const result = await db.query(
+      `INSERT INTO posts (title, post_type, content, date) VALUES ($1, $2, $3, ${dateExpr}) RETURNING id`,
+      [title || '', post_type || 'article', contentStr]
+    );
+    const id = result.rows[0] ? result.rows[0].id : null;
+    if (!id) {
+      // sql.js fallback: get last id
+      const r = await db.query('SELECT MAX(id) as id FROM posts');
+      res.json({ ok: true, id: r.rows[0] ? r.rows[0].id : 0 });
+    } else {
+      res.json({ ok: true, id });
+    }
+  } catch(e) {
+    console.error('New post error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/edit/:id', requireAuth, async (req, res) => {
+  try {
+    const result = await db.query('SELECT * FROM posts WHERE id = $1', [parseInt(req.params.id)]);
+    if (!result.rows.length) return res.status(404).send('文章未找到');
+    const post = result.rows[0];
+    const settings = await getSettings();
+    res.render('edit', { post, settings, site_title: 'ZHZAILL' });
+  } catch(e) {
+    console.error('Edit error:', e);
+    res.status(500).send('服务器错误');
+  }
+});
+
+app.post('/edit/:id', requireAuth, async (req, res) => {
+  try {
+    const { title, post_type, content } = req.body;
+    const contentStr = JSON.stringify(content || []);
+    await db.query(
+      'UPDATE posts SET title = $1, post_type = $2, content = $3 WHERE id = $4',
+      [title || '', post_type || 'article', contentStr, parseInt(req.params.id)]
+    );
+    res.json({ ok: true });
+  } catch(e) {
+    console.error('Edit error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/delete/:id', requireAuth, async (req, res) => {
+  await db.query('DELETE FROM posts WHERE id = $1', [parseInt(req.params.id)]);
+  res.redirect('/admin');
+});
+
+app.get('/settings', requireAuth, async (req, res) => {
+  const settings = await getSettings();
+  res.render('settings', { settings, site_title: 'ZHZAILL' });
+});
+
+app.post('/settings', requireAuth, async (req, res) => {
+  for (const [k, v] of Object.entries(req.body)) {
+    await db.query(
+      'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2',
+      [k, v]
+    );
+  }
+  res.redirect('/settings');
+});
+
+app.get('/api/settings', async (req, res) => {
+  const settings = await getSettings();
+  res.json(settings);
+});
+
+app.get('/api/posts', async (req, res) => {
+  const posts = await db.query('SELECT id, title, post_type, cover_image, date FROM posts ORDER BY id DESC');
+  res.json(posts.rows);
+});
+
+// ===== HOMEPAGE BLOCKS API =====
+app.get('/api/homepage-blocks', async (req, res) => {
+  try {
+    const blocks = await db.query('SELECT * FROM homepage_blocks ORDER BY sort_order ASC');
+    const parsed = blocks.rows.map(b => ({
+      ...b,
+      data: typeof b.data === 'string' ? JSON.parse(b.data || '{}') : (b.data || {})
+    }));
+    res.json(parsed);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/homepage-blocks', requireAuth, async (req, res) => {
+  try {
+    const { type, data } = req.body;
+    const maxResult = await db.query('SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM homepage_blocks');
+    const nextOrder = maxResult.rows[0] ? maxResult.rows[0].next : 0;
+    const dataStr = JSON.stringify(data || {});
+    const result = await db.query(
+      'INSERT INTO homepage_blocks (type, data, sort_order) VALUES ($1, $2, $3) RETURNING id',
+      [type, dataStr, nextOrder]
+    );
+    const id = result.rows[0] ? result.rows[0].id : null;
+    if (!id) {
+      const r = await db.query('SELECT MAX(id) as id FROM homepage_blocks');
+      return res.json({ ok: true, id: r.rows[0] ? r.rows[0].id : 0 });
+    }
+    res.json({ ok: true, id });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/homepage-blocks/:id', requireAuth, async (req, res) => {
+  try {
+    const { type, data, sort_order } = req.body;
+    const updates = [];
+    const params = [];
+    let idx = 1;
+    if (type !== undefined) { updates.push(`type = $${idx++}`); params.push(type); }
+    if (data !== undefined) { updates.push(`data = $${idx++}`); params.push(JSON.stringify(data)); }
+    if (sort_order !== undefined) { updates.push(`sort_order = $${idx++}`); params.push(sort_order); }
+    if (!updates.length) return res.status(400).json({ error: 'no fields' });
+    params.push(parseInt(req.params.id));
+    await db.query(`UPDATE homepage_blocks SET ${updates.join(', ')} WHERE id = $${idx}`, params);
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/homepage-blocks/:id', requireAuth, async (req, res) => {
+  try {
+    await db.query('DELETE FROM homepage_blocks WHERE id = $1', [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/homepage-blocks/reorder', requireAuth, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids array required' });
+    for (let i = 0; i < ids.length; i++) {
+      await db.query('UPDATE homepage_blocks SET sort_order = $1 WHERE id = $2', [i, ids[i]]);
+    }
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+const multer = require('multer');
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -26,202 +293,38 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 100 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = /\.(jpg|jpeg|png|gif|webp|svg|bmp|mp4|webm|pdf|doc|docx|xls|xlsx|zip|rar)$/i;
+    const allowed = /\.(jpg|jpeg|png|gif|webp|svg|bmp|mp4|webm|avi|mov|mp3|wav|ogg|flac)$/i;
     if (allowed.test(path.extname(file.originalname))) return cb(null, true);
     cb(new Error('不支持的文件类型'));
   }
 });
 
-let db;
-let SQL;
+app.post('/upload', requireAuth, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: '未选择文件' });
+  res.json({ url: '/uploads/' + req.file.filename });
+});
 
-function saveDb() {
-  const data = db.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
-}
-
-function hashPw(pw) {
-  return crypto.createHash('sha256').update(pw).digest('hex');
-}
-
-function isAuth(req) {
-  return req.cookies && req.cookies.token === hashPw(PASSWORD);
-}
-
-function requireAuth(req, res, next) {
-  if (isAuth(req)) return next();
-  res.redirect('/login');
-}
-
-function getSetting(key, def) {
-  const r = db.exec('SELECT value FROM settings WHERE key = ?', [key]);
-  return r.length && r[0].values.length ? r[0].values[0][0] : def;
-}
-
-function getSettings() {
-  const r = db.exec('SELECT key, value FROM settings');
+async function getSettings() {
+  const result = await db.query('SELECT key, value FROM settings');
   const s = {};
-  for (const row of r[0] ? r[0].values : []) s[row[0]] = row[1];
+  for (const row of result.rows) s[row.key] = row.value;
   return s;
 }
 
-async function initDb() {
-  SQL = await initSqlJs();
-  if (fs.existsSync(DB_PATH)) {
-    db = new SQL.Database(fs.readFileSync(DB_PATH));
-  } else {
-    db = new SQL.Database();
-  }
-  db.run(`CREATE TABLE IF NOT EXISTS posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    date TEXT NOT NULL
-  )`);
-  db.run(`CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  )`);
-  const pcount = db.exec('SELECT COUNT(*) as c FROM posts');
-  if (!pcount.length || !pcount[0].values.length || pcount[0].values[0][0] === 0) {
-    db.run('INSERT INTO posts (title, content, date) VALUES (?, ?, ?)',
-      ['欢迎来到我的博客',
-       '## 你好！\n\n这是我的第一篇博客文章。\n\n### 关于我\n\n我是一名开发者，热爱编程和分享知识。',
-       new Date().toISOString().slice(0, 10)]);
-  }
-  const defaults = {
-    site_title: '我的博客',
-    site_subtitle: '分享技术与生活',
-    avatar: '',
-    about: '一个简单的个人博客',
-    widgets: 'about,recent',
-    theme: 'default'
-  };
-  for (const [k, v] of Object.entries(defaults)) {
-    db.run('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', [k, v]);
-  }
-  saveDb();
-}
-
-app.set('view engine', 'ejs');
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(UPLOAD_DIR_REL, express.static(UPLOAD_DIR));
-app.use(express.urlencoded({ extended: true }));
-
-app.use((req, res, next) => {
-  const cookies = req.headers.cookie || '';
-  req.cookies = {};
-  for (const pair of cookies.split(';')) {
-    const [k, ...v] = pair.trim().split('=');
-    if (k) req.cookies[k] = decodeURIComponent(v.join('='));
-  }
-  next();
-});
-
-app.post('/upload', requireAuth, upload.single('file'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: '未选择文件' });
-  res.json({ url: UPLOAD_DIR_REL + '/' + req.file.filename });
-});
-
-app.get('/login', (req, res) => {
-  if (isAuth(req)) return res.redirect('/');
-  res.render('login');
-});
-
-app.post('/login', (req, res) => {
-  if (req.body.password === PASSWORD) {
-    res.setHeader('Set-Cookie', `token=${hashPw(PASSWORD)}; Path=/; HttpOnly`);
-    return res.redirect('/');
-  }
-  res.render('login', { error: '密码错误' });
-});
-
-app.get('/logout', (req, res) => {
-  res.setHeader('Set-Cookie', 'token=; Path=/; Max-Age=0');
-  res.redirect('/');
-});
-
-app.get('/settings', requireAuth, (req, res) => {
-  res.render('settings', { settings: getSettings() });
-});
-
-app.post('/settings', requireAuth, (req, res) => {
-  for (const [k, v] of Object.entries(req.body)) {
-    db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [k, v]);
-  }
-  saveDb();
-  res.redirect('/settings');
-});
-
-app.get('/', (req, res) => {
-  const stmt = db.prepare('SELECT id, title, date, substr(content, 1, 200) as excerpt FROM posts ORDER BY id DESC');
-  const posts = [];
-  while (stmt.step()) { posts.push(stmt.getAsObject()); }
-  stmt.free();
-  const settings = getSettings();
-  const widgets = (settings.widgets || '').split(',').filter(Boolean);
-  res.render('index', { posts, settings, widgets, auth: isAuth(req) });
-});
-
-app.get('/post/:id', (req, res) => {
-  const stmt = db.prepare('SELECT * FROM posts WHERE id = ?');
-  stmt.bind([parseInt(req.params.id)]);
-  if (!stmt.step()) { stmt.free(); return res.status(404).send('文章未找到'); }
-  const post = stmt.getAsObject();
-  stmt.free();
-  post.content = marked(post.content);
-  const settings = getSettings();
-  const widgets = (settings.widgets || '').split(',').filter(Boolean);
-  res.render('post', { post, settings, widgets, auth: isAuth(req) });
-});
-
-app.get('/new', requireAuth, (req, res) => {
-  res.render('new', { settings: getSettings(), auth: true });
-});
-
-app.post('/new', requireAuth, (req, res) => {
-  const { title, content } = req.body;
-  if (!title || !content) return res.redirect('/new');
-  db.run('INSERT INTO posts (title, content, date) VALUES (?, ?, ?)',
-    [title, content, new Date().toISOString().slice(0, 10)]);
-  saveDb();
-  const id = db.exec('SELECT last_insert_rowid() as id')[0].values[0][0];
-  res.redirect(`/post/${id}`);
-});
-
-app.get('/edit/:id', requireAuth, (req, res) => {
-  const stmt = db.prepare('SELECT * FROM posts WHERE id = ?');
-  stmt.bind([parseInt(req.params.id)]);
-  if (!stmt.step()) { stmt.free(); return res.status(404).send('文章未找到'); }
-  const post = stmt.getAsObject();
-  stmt.free();
-  res.render('edit', { post, settings: getSettings(), auth: true });
-});
-
-app.post('/edit/:id', requireAuth, (req, res) => {
-  db.run('UPDATE posts SET title = ?, content = ? WHERE id = ?',
-    [req.body.title, req.body.content, parseInt(req.params.id)]);
-  saveDb();
-  res.redirect(`/post/${req.params.id}`);
-});
-
-app.post('/delete/:id', requireAuth, (req, res) => {
-  db.run('DELETE FROM posts WHERE id = ?', [parseInt(req.params.id)]);
-  saveDb();
-  res.redirect('/');
-});
-
 app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) return res.status(400).json({ error: err.message });
   if (err) return res.status(400).json({ error: err.message });
   next();
 });
 
 (async () => {
-  await initDb();
-  app.listen(PORT, () => {
-    console.log(`博客运行在 http://localhost:${PORT}`);
-  });
+  try {
+    db = await initDb();
+    app.listen(PORT, () => {
+      console.log(`ZHZAILL 博客运行在 http://localhost:${PORT}`);
+    });
+  } catch (e) {
+    console.error('启动失败:', e);
+  }
 })();

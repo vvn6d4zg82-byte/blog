@@ -1,3 +1,5 @@
 node_modules/
 .git/
 data/*.db
+public/wallpaper2*.mp4
+*.exe
