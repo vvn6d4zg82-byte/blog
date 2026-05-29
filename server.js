@@ -36,8 +36,8 @@ function requireAuth(req, res, next) {
 }
 
 app.set('view engine', 'ejs');
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(UPLOAD_DIR));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '7d' }));
+app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieMiddleware);
@@ -207,6 +207,60 @@ app.get('/api/settings', async (req, res) => {
 app.get('/api/posts', async (req, res) => {
   const posts = await db.query('SELECT id, title, post_type, cover_image, date FROM posts ORDER BY id DESC');
   res.json(posts.rows);
+});
+
+// ===== SYNC API (for pushing local SQLite data to Railway PostgreSQL) =====
+app.post('/api/sync', requireAuth, async (req, res) => {
+  try {
+    const { posts, settings, media, blocks } = req.body;
+    if (!posts && !settings && !media && !blocks) {
+      return res.status(400).json({ error: 'no data' });
+    }
+    if (posts && Array.isArray(posts)) {
+      for (const p of posts) {
+        const exists = await db.query('SELECT id FROM posts WHERE id = $1', [p.id]);
+        if (exists.rows && exists.rows.length) continue;
+        await db.query(
+          `INSERT INTO posts (id, title, post_type, content, date, updated_at, cover_image, wallpaper)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [p.id, p.title, p.post_type, p.content, p.date, p.updated_at || p.date, p.cover_image || '', p.wallpaper || '']
+        );
+      }
+    }
+    if (settings && Array.isArray(settings)) {
+      for (const s of settings) {
+        await db.query(
+          'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2',
+          [s.key, s.value]
+        );
+      }
+    }
+    if (media && Array.isArray(media)) {
+      for (const m of media) {
+        const exists = await db.query('SELECT id FROM media WHERE id = $1', [m.id]);
+        if (exists.rows && exists.rows.length) continue;
+        await db.query(
+          `INSERT INTO media (id, post_id, url, type, width, height, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [m.id, m.post_id, m.url, m.type, m.width || 0, m.height || 0, m.created_at]
+        );
+      }
+    }
+    if (blocks && Array.isArray(blocks)) {
+      for (const b of blocks) {
+        const exists = await db.query('SELECT id FROM homepage_blocks WHERE id = $1', [b.id]);
+        if (exists.rows && exists.rows.length) continue;
+        await db.query(
+          `INSERT INTO homepage_blocks (id, type, data, sort_order) VALUES ($1, $2, $3, $4)`,
+          [b.id, b.type, b.data, b.sort_order || 0]
+        );
+      }
+    }
+    res.json({ ok: true });
+  } catch(e) {
+    console.error('Sync error:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ===== HOMEPAGE BLOCKS API =====
